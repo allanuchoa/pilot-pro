@@ -1,0 +1,1458 @@
+/* ==========================================================================
+   Pilot Pro - Design System (Energy Dark / Allan Workbench)
+   ========================================================================== */
+
+:root {
+  /* Tokens globais do DESIGN.md */
+  --color-canvas: #101010;
+  --color-canvas-soft: #1a1a1a;
+  --color-canvas-elevated: #222222;
+  --color-hairline: #3d3a39;
+  --color-text: #f4f4f5;
+  --color-text-muted: #a1a1aa;
+  --color-text-subtle: #71717a;
+  --color-primary: #00d992;
+  --color-primary-hover: #00c282;
+  --color-primary-soft: rgba(0, 217, 146, 0.35);
+  --color-primary-bg: rgba(0, 217, 146, 0.12);
+
+  /* Tokens locais operacionais (AGENTS.md secao 4) */
+  --color-danger: #f87171;
+  --color-danger-bg: rgba(248, 113, 113, 0.12);
+  --color-warning: #f59e0b;
+  --color-warning-bg: rgba(245, 158, 11, 0.12);
+  --color-surface-overlay: rgba(16, 16, 16, 0.92);
+  --color-route-bat-1: #00d992;
+  --color-route-bat-2: #38bdf8;
+  --color-route-bat-3: #f59e0b;
+  --color-route-bat-4: #a78bfa;
+  --color-polygon-stroke: #ffffff;
+  --color-takeoff-marker: #00d992;
+
+  /* Tipografia */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Dimensoes e raios */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-pill: 9999px;
+  --sidebar-width: 360px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--color-canvas);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary-soft);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   Layout Principal (100dvh descontando header do App Bridge)
+   ========================================================================== */
+
+.app-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+}
+
+.workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  position: relative;
+  overflow: hidden;
+}
+
+.map-stage {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-canvas);
+}
+
+.map-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  background-color: #0b0b0b;
+  z-index: 1;
+}
+
+/* ==========================================================================
+   Toolbar Flutuante do Mapa
+   ========================================================================== */
+
+.map-toolbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 500;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.toolbar-group-relative {
+  position: relative;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background-color: var(--color-hairline);
+  margin: 0 2px;
+}
+
+.toolbar-btn {
+  appearance: none;
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  min-height: 34px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.toolbar-btn:hover {
+  background-color: var(--color-canvas-elevated);
+  border-color: var(--color-hairline);
+}
+
+.toolbar-btn.is-active {
+  background-color: var(--color-primary-bg);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.toolbar-btn-accent {
+  border-color: var(--color-hairline);
+  background-color: var(--color-canvas-soft);
+}
+
+.toolbar-btn-danger:hover {
+  background-color: var(--color-danger-bg);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.expand-sidebar-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 500;
+  min-height: 38px;
+  padding: 6px 12px;
+  background-color: var(--color-surface-overlay);
+  color: var(--color-text);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.expand-sidebar-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* Popovers da toolbar (Camadas e Coordenadas) */
+.floating-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 600;
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  min-width: 220px;
+}
+
+.layers-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.popover-item {
+  appearance: none;
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  text-align: left;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.popover-item:hover {
+  background-color: var(--color-canvas-elevated);
+}
+
+.popover-item.is-active {
+  background-color: var(--color-primary-bg);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.coords-popover {
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.popover-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.coords-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* Chips de dica e status de elevacao */
+.map-hint-chip {
+  position: absolute;
+  top: 64px;
+  left: 12px;
+  z-index: 480;
+  padding: 6px 12px;
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-pill);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 500;
+  max-width: calc(100% - 24px);
+}
+
+.elevation-status-bar {
+  position: absolute;
+  top: 64px;
+  right: 12px;
+  z-index: 480;
+  max-width: min(460px, calc(100% - 24px));
+}
+
+.status-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+}
+
+.status-inline.status-error {
+  border-color: var(--color-danger);
+  background-color: rgba(24, 14, 14, 0.94);
+  color: var(--color-danger);
+}
+
+.status-inline-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* ==========================================================================
+   Painel Expansivel de Perfil Altimetrico
+   ========================================================================== */
+
+.profile-panel {
+  flex: 0 0 auto;
+  background-color: var(--color-canvas);
+  border-top: 1px solid var(--color-hairline);
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--color-hairline);
+  background-color: var(--color-canvas-soft);
+  flex-wrap: wrap;
+}
+
+.profile-panel-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-panel-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.profile-panel-stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  flex-wrap: wrap;
+}
+
+.profile-panel-stats strong {
+  color: var(--color-text);
+}
+
+.elevation-profile-chart {
+  position: relative;
+  width: 100%;
+  height: 185px;
+  background-color: var(--color-canvas);
+}
+
+.profile-chart-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.profile-chart-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.profile-chart-empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  padding: 16px;
+}
+
+.profile-chart-tooltip {
+  position: absolute;
+  top: 10px;
+  pointer-events: none;
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  min-width: 130px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  z-index: 10;
+}
+
+.profile-chart-tooltip .tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--color-text-muted);
+}
+
+.profile-chart-tooltip .tooltip-row strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.profile-chart-tooltip .tooltip-row.is-danger strong {
+  color: var(--color-danger);
+}
+
+.profile-chart-tooltip .tooltip-row.is-safe strong {
+  color: var(--color-primary);
+}
+
+/* ==========================================================================
+   Barra de Telemetria (SF Mono)
+   ========================================================================== */
+
+.telemetry-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background-color: var(--color-canvas-soft);
+  border-top: 1px solid var(--color-hairline);
+  z-index: 410;
+}
+
+.telemetry-metrics {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.telemetry-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+.telemetry-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--color-text-subtle);
+}
+
+.telemetry-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.telemetry-profile-btn {
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Painel Lateral Direito (Desktop >= 1024px)
+   ========================================================================== */
+
+.control-panel {
+  flex: 0 0 var(--sidebar-width);
+  width: var(--sidebar-width);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-canvas-soft);
+  border-left: 1px solid var(--color-hairline);
+  z-index: 550;
+}
+
+.control-panel.is-collapsed {
+  display: none;
+}
+
+.sheet-drag-handle {
+  display: none;
+}
+
+.panel-header {
+  flex: 0 0 auto;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-hairline);
+  background-color: var(--color-canvas);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panel-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.eyebrow {
+  margin: 0 0 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--color-primary);
+  text-transform: uppercase;
+}
+
+.mission-name-input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 2px 4px;
+  margin-left: -4px;
+}
+
+.mission-name-input:hover,
+.mission-name-input:focus {
+  background-color: var(--color-canvas-soft);
+  border-color: var(--color-hairline);
+}
+
+.panel-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel-footer {
+  flex: 0 0 auto;
+  padding: 12px 14px;
+  border-top: 1px solid var(--color-hairline);
+  background-color: var(--color-canvas);
+}
+
+/* Secoes e Controles */
+.control-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.control-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.field,
+.field-slider,
+.field-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label,
+.field-compact > span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text);
+}
+
+.field-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.text-input,
+.select-input,
+.num-input {
+  width: 100%;
+  background-color: var(--color-canvas);
+  color: var(--color-text);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.text-input.mono,
+.num-input.mono {
+  font-family: var(--font-mono);
+}
+
+.num-input {
+  width: 78px;
+  padding: 4px 8px;
+  text-align: right;
+  font-size: 12px;
+}
+
+.select-input {
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.range-input {
+  width: 100%;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+  margin: 0;
+  height: 18px;
+}
+
+/* Segmented Controls */
+.segmented-group {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+.segmented-btn {
+  appearance: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 6px 6px;
+  min-height: 32px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.segmented-btn:hover {
+  color: var(--color-text);
+}
+
+.segmented-btn.is-active {
+  background-color: var(--color-primary-bg);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* Switches */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.toggle-row-inline {
+  padding-top: 18px;
+}
+
+.toggle-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.toggle-label span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.toggle-label small {
+  font-size: 11px;
+  color: var(--color-text-subtle);
+}
+
+.switch-input {
+  appearance: none;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-pill);
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.switch-input::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: var(--color-text-muted);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.switch-input:checked {
+  background-color: var(--color-primary-bg);
+  border-color: var(--color-primary);
+}
+
+.switch-input:checked::after {
+  transform: translateX(16px);
+  background-color: var(--color-primary);
+}
+
+/* Readouts, Spec Summary e Info Boxes */
+.spec-summary {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+}
+
+.readout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.readout-cell {
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.readout-label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+}
+
+.readout-cell strong {
+  font-size: 12px;
+  color: var(--color-primary);
+}
+
+.info-box {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+.badge-mono {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-hairline);
+  background-color: var(--color-canvas);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Alertas e Partes Multi-Bateria */
+.alerts-list,
+.parts-list,
+.export-parts-list,
+.missions-list,
+.custom-drones-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.alert-card {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-hairline);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.alert-warning {
+  background-color: var(--color-warning-bg);
+  border-color: var(--color-warning);
+  color: #fde68a;
+}
+
+.alert-danger {
+  background-color: var(--color-danger-bg);
+  border-color: var(--color-danger);
+  color: #fecaca;
+}
+
+.part-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-left: 3px solid var(--color-route-bat-1);
+  border-radius: var(--radius-sm);
+}
+
+.part-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.part-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.muted-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-subtle);
+}
+
+/* ==========================================================================
+   Botoes
+   ========================================================================== */
+
+.btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: #09130f;
+  border-color: var(--color-primary);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.btn-secondary {
+  background-color: var(--color-canvas-elevated);
+  color: var(--color-text);
+  border-color: var(--color-hairline);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--color-text-muted);
+  border-color: var(--color-hairline);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  color: var(--color-text);
+  background-color: var(--color-canvas-elevated);
+}
+
+.btn-danger {
+  background-color: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.btn-sm {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.btn-xs {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-link {
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  color: var(--color-primary);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-link:hover {
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   Modais e Estados (Loading, Empty, Error, Success)
+   ========================================================================== */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background-color: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 500px;
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-canvas-soft);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.modal-card-lg {
+  max-width: 640px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background-color: var(--color-canvas);
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.modal-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  background-color: var(--color-canvas);
+  border-top: 1px solid var(--color-hairline);
+  flex-wrap: wrap;
+}
+
+.modal-footer-inline {
+  padding: 10px 0 0;
+  background: transparent;
+}
+
+.modal-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.export-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.export-part-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+}
+
+.mission-item-card,
+.custom-drone-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+}
+
+.mission-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.mission-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.mission-item-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.mission-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.state-box {
+  padding: 28px 16px;
+  border: 1px dashed var(--color-hairline);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.state-box-error {
+  border-style: solid;
+  border-color: var(--color-danger);
+  background-color: var(--color-danger-bg);
+}
+
+.state-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.custom-drone-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-hairline);
+}
+
+/* Guia DJI Fly */
+.guide-intro {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.guide-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.code-path {
+  display: block;
+  margin-top: 6px;
+  padding: 8px 10px;
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-primary);
+  word-break: break-all;
+}
+
+.code-inline {
+  padding: 1px 5px;
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-primary);
+}
+
+/* Fallback de Erro CDN / SSO */
+.error-fallback {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-color: var(--color-canvas);
+}
+
+.error-fallback-card {
+  max-width: 460px;
+  width: 100%;
+  padding: 24px;
+  background-color: var(--color-canvas-soft);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.error-fallback-card h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.error-fallback-card p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.error-fallback-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* Spinner e Toasts */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-hairline);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  display: inline-block;
+  animation: ppr-spin 0.8s linear infinite;
+}
+
+@keyframes ppr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.toast-container {
+  position: fixed;
+  bottom: 64px;
+  left: 16px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  padding: 10px 14px;
+  background-color: var(--color-surface-overlay);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 500;
+  max-width: 340px;
+}
+
+.toast-success {
+  border-color: var(--color-primary);
+}
+
+.toast-danger {
+  border-color: var(--color-danger);
+  color: #fecaca;
+}
+
+/* ==========================================================================
+   Overrides discretos do Leaflet para Energy Dark
+   ========================================================================== */
+
+.leaflet-container {
+  background: #0b0b0b;
+  font-family: var(--font-sans);
+}
+
+.leaflet-control-zoom {
+  border: 1px solid var(--color-hairline) !important;
+  border-radius: var(--radius-sm) !important;
+  overflow: hidden;
+  box-shadow: none !important;
+}
+
+.leaflet-control-zoom a {
+  background-color: var(--color-surface-overlay) !important;
+  color: var(--color-text) !important;
+  border-bottom-color: var(--color-hairline) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: var(--color-canvas-elevated) !important;
+  color: var(--color-primary) !important;
+}
+
+.leaflet-control-attribution {
+  background-color: rgba(16, 16, 16, 0.78) !important;
+  color: var(--color-text-muted) !important;
+  font-size: 10px !important;
+}
+
+.leaflet-control-attribution a {
+  color: var(--color-primary) !important;
+}
+
+/* ==========================================================================
+   Responsividade: Tablet e Mobile (< 1024px) - Bottom Sheet Recolhivel
+   ========================================================================== */
+
+@media (max-width: 1023px) {
+  .desktop-only,
+  .expand-sidebar-btn {
+    display: none !important;
+  }
+
+  .workspace {
+    flex-direction: column;
+  }
+
+  .map-stage {
+    padding-bottom: 108px;
+  }
+
+  .map-toolbar {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    max-width: calc(100% - 16px);
+    padding: 4px 6px;
+  }
+
+  .toolbar-btn {
+    min-height: 44px;
+    padding: 6px 10px;
+  }
+
+  .toolbar-divider {
+    display: none;
+  }
+
+  .control-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    flex: none;
+    border-left: none;
+    border-top: 1px solid var(--color-hairline);
+    border-radius: 12px 12px 0 0;
+    max-height: 82dvh;
+    z-index: 850;
+    transition: transform 0.2s ease;
+  }
+
+  .control-panel.is-collapsed {
+    display: flex;
+  }
+
+  .control-panel:not(.is-expanded) .panel-header,
+  .control-panel:not(.is-expanded) .panel-body {
+    display: none;
+  }
+
+  .sheet-drag-handle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 44px;
+    width: 100%;
+    background-color: var(--color-canvas);
+    border: none;
+    border-bottom: 1px solid var(--color-hairline);
+    border-radius: 12px 12px 0 0;
+    color: var(--color-text-muted);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .sheet-handle-bar {
+    width: 36px;
+    height: 4px;
+    border-radius: var(--radius-pill);
+    background-color: var(--color-hairline);
+  }
+
+  .segmented-btn {
+    min-height: 44px;
+  }
+
+  .telemetry-bar {
+    padding: 6px 10px;
+  }
+
+  .export-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

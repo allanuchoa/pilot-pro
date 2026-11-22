@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Pilot Pro | Allan Workbench</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  >
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  >
+  <link rel="stylesheet" href="styles.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+  <script src="config.js"></script>
+  <script src="supabase.js"></script>
+  <script>
+    (function injectWorkbenchBridge() {
+      function showBootError(title, message) {
+        function renderError() {
+          document.body.style.display = 'flex';
+          var shell = document.getElementById('app-shell');
+          var fallback = document.getElementById('app-error-fallback');
+          var titleEl = document.getElementById('app-error-title');
+          var msgEl = document.getElementById('app-error-message');
+          if (shell) shell.hidden = true;
+          if (fallback) fallback.hidden = false;
+          if (titleEl && title) titleEl.textContent = title;
+          if (msgEl && message) msgEl.textContent = message;
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', renderError);
+        } else {
+          renderError();
+        }
+      }
+
+      if (typeof CONFIG === 'undefined' || !CONFIG.PORTAL_URL) {
+        showBootError(
+          'Configuracao indisponivel',
+          'Nao foi possivel carregar config.js ou PORTAL_URL. Verifique a implantacao.'
+        );
+        return;
+      }
+
+      var baseUrl = String(CONFIG.PORTAL_URL);
+      if (!/^https?:\/\//.test(baseUrl)) {
+        showBootError(
+          'URL do Portal invalida',
+          'CONFIG.PORTAL_URL deve iniciar com http:// ou https://.'
+        );
+        return;
+      }
+
+      var script = document.createElement('script');
+      script.src = baseUrl.replace(/\/?$/, '/') + 'assets/js/workbench-bridge.js';
+      script.defer = true;
+      script.onerror = function () {
+        showBootError(
+          'Falha ao carregar o App Bridge',
+          'Nao foi possivel conectar ao Portal Allan Workbench ou a uma CDN externa.'
+        );
+      };
+      document.head.appendChild(script);
+    })();
+  </script>
+</head>
+<body style="display: none;">
+  <!-- Fallback de erro de CDN ou SSO -->
+  <section id="app-error-fallback" class="error-fallback" hidden role="alert">
+    <div class="error-fallback-card">
+      <p class="eyebrow">PILOT PRO / DIAGNOSTICO</p>
+      <h1 id="app-error-title">Falha ao inicializar a aplicacao</h1>
+      <p id="app-error-message">
+        Verifique sua conexao com a internet e se sua sessao no Portal Allan Workbench esta ativa.
+      </p>
+      <div class="error-fallback-actions">
+        <button type="button" id="btn-error-retry" class="btn btn-primary">
+          Tentar novamente
+        </button>
+        <button type="button" id="btn-error-portal" class="btn btn-secondary">
+          Ir para o Portal
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Shell principal (ocupa 100dvh descontando o header injetado pelo workbench-bridge.js) -->
+  <main id="app-shell" class="app-shell">
+    <div id="workspace" class="workspace">
+      <!-- Area do Mapa -->
+      <section id="map-stage" class="map-stage" aria-label="Area do mapa">
+        <!-- Toolbar flutuante superior -->
+        <div id="map-toolbar" class="map-toolbar" role="toolbar" aria-label="Ferramentas do mapa">
+          <div class="toolbar-group">
+            <button
+              type="button"
+              id="btn-tool-polygon"
+              class="toolbar-btn"
+              data-tool="polygon"
+              title="Desenhar poligono da area"
+            >
+              Poligono
+            </button>
+            <button
+              type="button"
+              id="btn-tool-corridor"
+              class="toolbar-btn"
+              data-tool="corridor"
+              title="Desenhar eixo do corredor linear"
+            >
+              Corredor
+            </button>
+            <button
+              type="button"
+              id="btn-tool-takeoff"
+              class="toolbar-btn"
+              data-tool="takeoff"
+              title="Definir ponto de decolagem (Home)"
+            >
+              Decolagem
+            </button>
+          </div>
+
+          <div class="toolbar-divider" aria-hidden="true"></div>
+
+          <div class="toolbar-group">
+            <button
+              type="button"
+              id="btn-import-area"
+              class="toolbar-btn"
+              title="Importar arquivo KML ou GeoJSON"
+            >
+              Importar KML/GeoJSON
+            </button>
+            <input
+              type="file"
+              id="input-import-file"
+              accept=".kml,.geojson,.json,application/vnd.google-earth.kml+xml,application/geo+json"
+              hidden
+            >
+            <button
+              type="button"
+              id="btn-clear-area"
+              class="toolbar-btn toolbar-btn-danger"
+              title="Limpar geometria e rota atual"
+            >
+              Limpar
+            </button>
+          </div>
+
+          <div class="toolbar-divider" aria-hidden="true"></div>
+
+          <div class="toolbar-group toolbar-group-relative">
+            <button
+              type="button"
+              id="btn-layers-toggle"
+              class="toolbar-btn"
+              aria-expanded="false"
+              aria-controls="layers-menu"
+              title="Alternar camada base do mapa"
+            >
+              Camadas
+            </button>
+            <div id="layers-menu" class="floating-popover layers-menu" hidden role="menu">
+              <button type="button" class="popover-item is-active" data-layer="esri" role="menuitemradio" aria-checked="true">
+                Satelite (Esri World Imagery)
+              </button>
+              <button type="button" class="popover-item" data-layer="carto-dark" role="menuitemradio" aria-checked="false">
+                Carto Dark Matter
+              </button>
+              <button type="button" class="popover-item" data-layer="osm" role="menuitemradio" aria-checked="false">
+                OpenStreetMap
+              </button>
+              <button type="button" class="popover-item" data-layer="maptiler" id="btn-layer-maptiler" hidden role="menuitemradio" aria-checked="false">
+                MapTiler Satelite
+              </button>
+            </div>
+
+            <button
+              type="button"
+              id="btn-locate-user"
+              class="toolbar-btn"
+              title="Centralizar na minha localizacao"
+            >
+              Minha Posicao
+            </button>
+
+            <button
+              type="button"
+              id="btn-goto-coords"
+              class="toolbar-btn"
+              aria-expanded="false"
+              aria-controls="coords-popover"
+              title="Ir para coordenadas latitude e longitude"
+            >
+              Coordenadas
+            </button>
+            <div id="coords-popover" class="floating-popover coords-popover" hidden>
+              <div class="popover-title">Ir para Coordenadas (WGS84)</div>
+              <div class="coords-fields">
+                <label class="field-compact">
+                  <span>Latitude</span>
+                  <input type="number" id="input-goto-lat" step="0.000001" placeholder="-15.793889">
+                </label>
+                <label class="field-compact">
+                  <span>Longitude</span>
+                  <input type="number" id="input-goto-lon" step="0.000001" placeholder="-47.882778">
+                </label>
+              </div>
+              <div class="popover-actions">
+                <button type="button" id="btn-goto-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+                <button type="button" id="btn-goto-submit" class="btn btn-primary btn-sm">Ir</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="toolbar-divider" aria-hidden="true"></div>
+
+          <div class="toolbar-group">
+            <button
+              type="button"
+              id="btn-my-missions"
+              class="toolbar-btn toolbar-btn-accent"
+              title="Abrir missoes salvas"
+            >
+              Minhas Missoes
+            </button>
+          </div>
+        </div>
+
+        <!-- Botao para reabrir sidebar no desktop quando colapsada -->
+        <button
+          type="button"
+          id="btn-expand-sidebar"
+          class="expand-sidebar-btn"
+          hidden
+          aria-label="Expandir painel de configuracao"
+          title="Expandir painel de configuracao"
+        >
+          Painel
+        </button>
+
+        <!-- Dica de interacao ativa no mapa -->
+        <div id="map-hint-chip" class="map-hint-chip" hidden role="status" aria-live="polite"></div>
+
+        <!-- Barra de status de elevacao (Loading / Error) -->
+        <div id="elevation-status-bar" class="elevation-status-bar" hidden>
+          <div id="elevation-loading" class="status-inline status-loading" hidden>
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Consultando elevacao do terreno (SRTM)...</span>
+          </div>
+          <div id="elevation-error" class="status-inline status-error" hidden role="alert">
+            <span id="elevation-error-msg">Falha ao consultar elevacao do terreno.</span>
+            <div class="status-inline-actions">
+              <button type="button" id="btn-elevation-retry" class="btn btn-secondary btn-xs">
+                Tentar novamente
+              </button>
+              <button type="button" id="btn-elevation-fallback-fixed" class="btn btn-ghost btn-xs">
+                Usar Altitude Fixa
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Container Leaflet -->
+        <div id="map" class="map-container" role="application" aria-label="Mapa interativo de planejamento de voo"></div>
+
+        <!-- Painel expansivel do grafico de perfil altimetrico -->
+        <section
+          id="profile-panel"
+          class="profile-panel"
+          hidden
+          aria-label="Perfil altimetrico da missao"
+        >
+          <div class="profile-panel-header">
+            <div class="profile-panel-title-group">
+              <h2 class="profile-panel-title">Perfil Altimetrico</h2>
+              <span id="profile-source-badge" class="badge-mono">SRTM</span>
+            </div>
+            <div class="profile-panel-stats">
+              <span>AGL Min: <strong id="profile-min-agl" class="mono">--</strong></span>
+              <span>AGL Max: <strong id="profile-max-agl" class="mono">--</strong></span>
+              <span>Terreno: <strong id="profile-terrain-range" class="mono">--</strong></span>
+            </div>
+            <button
+              type="button"
+              id="btn-close-profile"
+              class="btn btn-ghost btn-xs"
+              aria-label="Fechar perfil altimetrico"
+            >
+              Fechar
+            </button>
+          </div>
+          <div id="elevation-profile-chart" class="elevation-profile-chart"></div>
+        </section>
+
+        <!-- Barra inferior de telemetria em SF Mono -->
+        <footer id="telemetry-bar" class="telemetry-bar" aria-label="Resumo de telemetria da missao">
+          <div class="telemetry-metrics">
+            <div class="telemetry-item">
+              <span class="telemetry-label">DIST</span>
+              <span id="metric-distance" class="telemetry-value mono">--</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">DURACAO</span>
+              <span id="metric-duration" class="telemetry-value mono">--</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">FOTOS</span>
+              <span id="metric-photos" class="telemetry-value mono">--</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">BATERIAS</span>
+              <span id="metric-batteries" class="telemetry-value mono">--</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">GSD</span>
+              <span id="metric-gsd" class="telemetry-value mono">--</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">ESPAC.</span>
+              <span id="metric-spacing" class="telemetry-value mono">--</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">DISPARO / VEL.</span>
+              <span id="metric-interval-speed" class="telemetry-value mono">--</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">AREA</span>
+              <span id="metric-area" class="telemetry-value mono">--</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            id="btn-toggle-profile"
+            class="btn btn-secondary btn-sm telemetry-profile-btn"
+            aria-expanded="false"
+            aria-controls="profile-panel"
+          >
+            Perfil Altimetrico
+          </button>
+        </footer>
+      </section>
+
+      <!-- Painel Lateral (Desktop) / Bottom Sheet (Mobile) -->
+      <aside id="control-panel" class="control-panel" aria-label="Parametros da missao">
+        <!-- Alca mobile para expandir/recolher bottom sheet -->
+        <button
+          type="button"
+          id="sheet-drag-handle"
+          class="sheet-drag-handle"
+          aria-expanded="false"
+          aria-label="Expandir ou recolher parametros da missao"
+        >
+          <span class="sheet-handle-bar" aria-hidden="true"></span>
+          <span class="sheet-handle-label">Parametros da Missao</span>
+        </button>
+
+        <!-- Cabecalho do painel -->
+        <div class="panel-header">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">PILOT PRO</p>
+              <input
+                type="text"
+                id="input-mission-name"
+                class="mission-name-input"
+                value="Nova Missao"
+                placeholder="Nome da missao"
+                aria-label="Nome da missao"
+                maxlength="120"
+              >
+            </div>
+            <button
+              type="button"
+              id="btn-collapse-sidebar"
+              class="btn btn-ghost btn-xs desktop-only"
+              aria-label="Recolher painel lateral"
+              title="Recolher painel lateral"
+            >
+              Recolher
+            </button>
+          </div>
+          <div class="panel-header-actions">
+            <button type="button" id="btn-save-mission" class="btn btn-secondary btn-sm">
+              Salvar
+            </button>
+            <button type="button" id="btn-dji-guide" class="btn btn-ghost btn-sm">
+              Guia DJI Fly
+            </button>
+          </div>
+        </div>
+
+        <!-- Corpo rolavel com todos os controles -->
+        <div id="control-panel-body" class="panel-body">
+          <!-- 1. Aeronave -->
+          <section class="control-section">
+            <div class="section-header">
+              <h2 class="section-title">Aeronave</h2>
+              <button type="button" id="btn-custom-drone" class="btn-link">
+                Perfil Customizado
+              </button>
+            </div>
+            <div class="field">
+              <label for="select-drone" class="sr-only">Selecionar aeronave</label>
+              <select id="select-drone" class="select-input"></select>
+            </div>
+            <div id="drone-spec-summary" class="spec-summary mono"></div>
+          </section>
+
+          <!-- 2. Tipo de Missao -->
+          <section class="control-section">
+            <div class="section-header">
+              <h2 class="section-title">Tipo de Missao</h2>
+            </div>
+            <div id="mission-type-group" class="segmented-group" role="radiogroup" aria-label="Tipo de missao">
+              <button type="button" id="btn-type-grid" class="segmented-btn is-active" data-mission-type="grid" aria-pressed="true">
+                Grade
+              </button>
+              <button type="button" id="btn-type-double" class="segmented-btn" data-mission-type="double_grid" aria-pressed="false">
+                Dupla 3D
+              </button>
+              <button type="button" id="btn-type-corridor" class="segmented-btn" data-mission-type="corridor" aria-pressed="false">
+                Corredor
+              </button>
+            </div>
+
+            <div id="corridor-width-group" class="field-slider" hidden>
+              <div class="field-label-row">
+                <label for="input-corridor-width">Largura do Corredor (m)</label>
+                <input type="number" id="input-corridor-width" class="num-input mono" min="20" max="1000" step="5" value="100">
+              </div>
+              <input type="range" id="range-corridor-width" class="range-input" min="20" max="500" step="5" value="100">
+            </div>
+          </section>
+
+          <!-- 3. Fotogrametria -->
+          <section class="control-section">
+            <div class="section-header">
+              <h2 class="section-title">Fotogrametria</h2>
+            </div>
+
+            <div class="field-slider">
+              <div class="field-label-row">
+                <label for="input-altitude">Altitude AGL (m)</label>
+                <input type="number" id="input-altitude" class="num-input mono" min="30" max="200" step="1" value="100">
+              </div>
+              <input type="range" id="range-altitude" class="range-input" min="30" max="150" step="1" value="100">
+            </div>
+
+            <div class="field-slider">
+              <div class="field-label-row">
+                <label for="input-front-overlap">Sobreposicao Frontal (%)</label>
+                <input type="number" id="input-front-overlap" class="num-input mono" min="40" max="95" step="1" value="75">
+              </div>
+              <input type="range" id="range-front-overlap" class="range-input" min="40" max="95" step="1" value="75">
+            </div>
+
+            <div class="field-slider">
+              <div class="field-label-row">
+                <label for="input-side-overlap">Sobreposicao Lateral (%)</label>
+                <input type="number" id="input-side-overlap" class="num-input mono" min="40" max="95" step="1" value="65">
+              </div>
+              <input type="range" id="range-side-overlap" class="range-input" min="40" max="95" step="1" value="65">
+            </div>
+
+            <div class="field-slider">
+              <div class="field-label-row">
+                <label for="input-max-speed">Velocidade Maxima (m/s)</label>
+                <input type="number" id="input-max-speed" class="num-input mono" min="1" max="15" step="0.5" value="9.0">
+              </div>
+              <input type="range" id="range-max-speed" class="range-input" min="1" max="15" step="0.5" value="9.0">
+            </div>
+
+            <div class="field">
+              <div class="field-label-row">
+                <span>Intervalo entre Disparos</span>
+                <span id="interval-effective-badge" class="badge-mono">Auto</span>
+              </div>
+              <div id="interval-mode-group" class="segmented-group segmented-5" role="radiogroup" aria-label="Intervalo de disparo">
+                <button type="button" class="segmented-btn is-active" data-interval="auto" aria-pressed="true">Auto</button>
+                <button type="button" class="segmented-btn" data-interval="2" aria-pressed="false">2s</button>
+                <button type="button" class="segmented-btn" data-interval="3" aria-pressed="false">3s</button>
+                <button type="button" class="segmented-btn" data-interval="4" aria-pressed="false">4s</button>
+                <button type="button" class="segmented-btn" data-interval="5" aria-pressed="false">5s</button>
+              </div>
+            </div>
+
+            <div id="photogrammetry-readout" class="readout-grid mono">
+              <div class="readout-cell">
+                <span class="readout-label">GSD</span>
+                <strong id="readout-gsd">-- cm/px</strong>
+              </div>
+              <div class="readout-cell">
+                <span class="readout-label">Espacamento</span>
+                <strong id="readout-line-spacing">-- m</strong>
+              </div>
+              <div class="readout-cell">
+                <span class="readout-label">Passo Frontal</span>
+                <strong id="readout-photo-dist">-- m</strong>
+              </div>
+              <div class="readout-cell">
+                <span class="readout-label">Vel. / Sobr. Ef.</span>
+                <strong id="readout-speed">--</strong>
+              </div>
+            </div>
+          </section>
+
+          <!-- 4. Geometria da Rota -->
+          <section class="control-section">
+            <div class="section-header">
+              <h2 class="section-title">Geometria da Rota</h2>
+              <button type="button" id="btn-optimize-angle" class="btn-link">
+                Otimizar Angulo
+              </button>
+            </div>
+
+            <div class="field-slider">
+              <div class="field-label-row">
+                <label for="input-rotation">Rotacao das Linhas (graus)</label>
+                <input type="number" id="input-rotation" class="num-input mono" min="0" max="359" step="1" value="0">
+              </div>
+              <input type="range" id="range-rotation" class="range-input" min="0" max="359" step="1" value="0">
+            </div>
+
+            <div class="field-slider">
+              <div class="field-label-row">
+                <label for="input-overshoot">Margem / Overshoot (m)</label>
+                <input type="number" id="input-overshoot" class="num-input mono" min="0" max="100" step="1" value="15">
+              </div>
+              <input type="range" id="range-overshoot" class="range-input" min="0" max="100" step="1" value="15">
+            </div>
+
+            <div class="toggle-row">
+              <label for="toggle-reverse-direction" class="toggle-label">
+                <span>Inverter Sentido da Rota</span>
+                <small>Alterna o ponto de entrada das linhas</small>
+              </label>
+              <input type="checkbox" id="toggle-reverse-direction" class="switch-input">
+            </div>
+
+            <div class="toggle-row">
+              <label for="toggle-straighten-path" class="toggle-label">
+                <span>Straighten Flight Path</span>
+                <small>Evita curvas elipticas no DJI Fly</small>
+              </label>
+              <input type="checkbox" id="toggle-straighten-path" class="switch-input" checked>
+            </div>
+          </section>
+
+          <!-- 5. Terreno e Elevacao -->
+          <section class="control-section">
+            <div class="section-header">
+              <h2 class="section-title">Terreno e Elevacao</h2>
+            </div>
+
+            <div id="altitude-mode-group" class="segmented-group" role="radiogroup" aria-label="Modo de altitude">
+              <button type="button" id="btn-mode-terrain" class="segmented-btn is-active" data-altitude-mode="terrain_follow" aria-pressed="true">
+                Terrain Follow (AGL)
+              </button>
+              <button type="button" id="btn-mode-fixed" class="segmented-btn" data-altitude-mode="fixed" aria-pressed="false">
+                Altitude Fixa
+              </button>
+            </div>
+
+            <div id="takeoff-info" class="info-box mono">
+              Ponto de decolagem: nao definido
+            </div>
+          </section>
+
+          <!-- 6. Camera e Operacao -->
+          <section class="control-section">
+            <div class="section-header">
+              <h2 class="section-title">Camera e Operacao</h2>
+            </div>
+
+            <div class="field-slider">
+              <div class="field-label-row">
+                <label for="input-gimbal">Angulo do Gimbal (graus)</label>
+                <input type="number" id="input-gimbal" class="num-input mono" min="-90" max="-45" step="1" value="-90">
+              </div>
+              <input type="range" id="range-gimbal" class="range-input" min="-90" max="-45" step="1" value="-90">
+            </div>
+
+            <div class="field">
+              <label for="select-finish-action" class="field-label">Acao ao Finalizar Missao</label>
+              <select id="select-finish-action" class="select-input">
+                <option value="goHome" selected>Retornar para Casa (RTH)</option>
+                <option value="noAction">Pairar no Ultimo Ponto (Hover)</option>
+                <option value="autoLand">Pousar no Local (Land)</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <span class="field-label">Modo de Disparo</span>
+              <div id="trigger-mode-group" class="segmented-group" role="radiogroup" aria-label="Modo de disparo">
+                <button type="button" id="btn-trigger-wpml" class="segmented-btn is-active" data-trigger-mode="wpml" aria-pressed="true">
+                  Automatico (WPML)
+                </button>
+                <button type="button" id="btn-trigger-manual" class="segmented-btn" data-trigger-mode="manual" aria-pressed="false">
+                  Manual (DJI Fly)
+                </button>
+              </div>
+            </div>
+
+            <div id="manual-trigger-hint" class="alert-card alert-warning" hidden>
+              Ative o temporizador de fotos no DJI Fly para <strong id="manual-trigger-interval-value" class="mono">2s</strong> antes de iniciar o voo.
+            </div>
+
+            <div class="field-two-col">
+              <label class="field-compact">
+                <span>Max Waypoints / KMZ</span>
+                <input type="number" id="input-max-waypoints" class="text-input mono" min="10" max="500" step="1" value="99">
+              </label>
+              <label class="field-compact">
+                <span>Reserva Bateria (%)</span>
+                <input type="number" id="input-battery-reserve" class="text-input mono" min="5" max="50" step="5" value="20">
+              </label>
+            </div>
+          </section>
+
+          <!-- 7. Alertas Operacionais -->
+          <section class="control-section" aria-label="Alertas operacionais">
+            <div class="section-header">
+              <h2 class="section-title">Alertas</h2>
+            </div>
+            <div id="alerts-container" class="alerts-list">
+              <p class="muted-note">Nenhum alerta ativo.</p>
+            </div>
+          </section>
+
+          <!-- 8. Partes Multi-Bateria -->
+          <section id="battery-parts-section" class="control-section" aria-label="Partes multi-bateria">
+            <div class="section-header">
+              <h2 class="section-title">Divisao por Bateria</h2>
+            </div>
+            <div id="battery-parts-list" class="parts-list">
+              <p class="muted-note">Desenhe ou importe uma area para calcular as partes.</p>
+            </div>
+          </section>
+        </div>
+
+        <!-- Rodape fixo do painel com CTA principal -->
+        <div id="control-panel-footer" class="panel-footer">
+          <button type="button" id="btn-open-export" class="btn btn-primary btn-block">
+            Exportar KMZ
+          </button>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <!-- MODAL 1: Exportar KMZ / ZIP -->
+  <div id="modal-export" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="modal-export-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-export-title">Exportar Missao DJI Fly</h2>
+        <button type="button" class="btn btn-ghost btn-xs" data-close-modal="modal-export" aria-label="Fechar modal">
+          Fechar
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="export-filename-input" class="field-label">Nome base do arquivo</label>
+          <input type="text" id="export-filename-input" class="text-input mono" placeholder="mapeamento-area">
+        </div>
+
+        <div id="export-summary-metrics" class="export-summary-grid mono"></div>
+
+        <div id="export-manual-trigger-banner" class="alert-card alert-warning" hidden>
+          Modo Manual selecionado: configure o temporizador do DJI Fly para
+          <strong id="export-manual-interval" class="mono">2s</strong> antes de decolar.
+        </div>
+
+        <div id="export-validation-error" class="alert-card alert-danger" hidden role="alert"></div>
+
+        <div class="field">
+          <span class="field-label">Partes geradas</span>
+          <div id="export-parts-list" class="export-parts-list"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-export-guide-link" class="btn btn-ghost btn-sm">
+          Como importar no DJI Fly?
+        </button>
+        <div class="modal-footer-right">
+          <button type="button" class="btn btn-secondary btn-sm" data-close-modal="modal-export">
+            Cancelar
+          </button>
+          <button type="button" id="btn-export-download-all" class="btn btn-primary">
+            Baixar KMZ
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: Minhas Missoes (4 estados obrigatorios: Loading, Empty, Error, Success) -->
+  <div id="modal-missions" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="modal-missions-title">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h2 id="modal-missions-title">Minhas Missoes</h2>
+        <button type="button" class="btn btn-ghost btn-xs" data-close-modal="modal-missions" aria-label="Fechar modal">
+          Fechar
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="input-search-missions" class="sr-only">Buscar missao por nome</label>
+          <input
+            type="search"
+            id="input-search-missions"
+            class="text-input"
+            placeholder="Buscar missao por nome..."
+          >
+        </div>
+
+        <!-- Estado Loading -->
+        <div id="missions-state-loading" class="state-box" hidden>
+          <span class="spinner" aria-hidden="true"></span>
+          <p>Carregando missoes salvas...</p>
+        </div>
+
+        <!-- Estado Empty -->
+        <div id="missions-state-empty" class="state-box" hidden>
+          <p class="state-title">Nenhuma missao salva ainda</p>
+          <p class="muted-note">
+            Voce pode planejar e exportar arquivos KMZ livremente ou clicar em Salvar para guardar seu plano aqui.
+          </p>
+        </div>
+
+        <!-- Estado Error -->
+        <div id="missions-state-error" class="state-box state-box-error" hidden role="alert">
+          <p class="state-title">Falha ao carregar missoes</p>
+          <p id="missions-error-message" class="muted-note">Nao foi possivel consultar o banco de dados.</p>
+          <button type="button" id="btn-missions-retry" class="btn btn-secondary btn-sm">
+            Tentar novamente
+          </button>
+        </div>
+
+        <!-- Estado Success -->
+        <div id="missions-state-success" hidden>
+          <div id="missions-list" class="missions-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: Perfil Customizado de Drone -->
+  <div id="modal-custom-drone" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="modal-custom-drone-title">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h2 id="modal-custom-drone-title">Perfis Customizados de Drone</h2>
+        <button type="button" class="btn btn-ghost btn-xs" data-close-modal="modal-custom-drone" aria-label="Fechar modal">
+          Fechar
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="custom-drones-list" class="custom-drones-list"></div>
+
+        <form id="form-custom-drone" class="custom-drone-form" novalidate>
+          <input type="hidden" id="custom-drone-id" value="">
+
+          <div class="field">
+            <label for="custom-drone-name" class="field-label">Nome do Modelo</label>
+            <input type="text" id="custom-drone-name" class="text-input" placeholder="Ex: DJI Air 2S (Wide)" required>
+          </div>
+
+          <div class="field-two-col">
+            <label class="field-compact">
+              <span>Largura Sensor (mm)</span>
+              <input type="number" id="custom-drone-sensor-w" class="text-input mono" step="0.01" min="1" required>
+            </label>
+            <label class="field-compact">
+              <span>Altura Sensor (mm)</span>
+              <input type="number" id="custom-drone-sensor-h" class="text-input mono" step="0.01" min="1" required>
+            </label>
+          </div>
+
+          <div class="field-two-col">
+            <label class="field-compact">
+              <span>Distancia Focal Real (mm)</span>
+              <input type="number" id="custom-drone-focal" class="text-input mono" step="0.01" min="1" required>
+            </label>
+            <label class="field-compact">
+              <span>Autonomia Util (min)</span>
+              <input type="number" id="custom-drone-flight-time" class="text-input mono" step="0.5" min="5" max="120" required>
+            </label>
+          </div>
+
+          <div class="field-two-col">
+            <label class="field-compact">
+              <span>Resolucao Largura (px)</span>
+              <input type="number" id="custom-drone-img-w" class="text-input mono" step="1" min="640" required>
+            </label>
+            <label class="field-compact">
+              <span>Resolucao Altura (px)</span>
+              <input type="number" id="custom-drone-img-h" class="text-input mono" step="1" min="480" required>
+            </label>
+          </div>
+
+          <div class="field-two-col">
+            <label class="field-compact">
+              <span>Velocidade Segura (m/s)</span>
+              <input type="number" id="custom-drone-max-speed" class="text-input mono" step="0.5" min="1" max="25" required>
+            </label>
+            <div class="toggle-row toggle-row-inline">
+              <label for="custom-drone-mech-shutter" class="toggle-label">
+                <span>Obturador Mecanico</span>
+              </label>
+              <input type="checkbox" id="custom-drone-mech-shutter" class="switch-input">
+            </div>
+          </div>
+
+          <div id="custom-drone-error" class="alert-card alert-danger" hidden role="alert"></div>
+
+          <div class="modal-footer modal-footer-inline">
+            <button type="button" id="btn-custom-drone-reset" class="btn btn-ghost btn-sm">
+              Limpar Formulario
+            </button>
+            <button type="submit" id="btn-custom-drone-save" class="btn btn-primary">
+              Salvar Perfil
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: Guia Rapido de Substituicao no DJI Fly -->
+  <div id="modal-dji-guide" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="modal-dji-guide-title">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h2 id="modal-dji-guide-title">Guia Rapido: Importar KMZ no DJI Fly</h2>
+        <button type="button" class="btn btn-ghost btn-xs" data-close-modal="modal-dji-guide" aria-label="Fechar modal">
+          Fechar
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="guide-intro">
+          O aplicativo DJI Fly nao possui botao nativo de importacao de arquivo KMZ.
+          O procedimento padrao consiste em criar uma missao placeholder e substituir o arquivo KMZ mantendo exatamente o mesmo nome UUID.
+        </div>
+
+        <div id="guide-tabs" class="segmented-group" role="tablist" aria-label="Dispositivo DJI Fly">
+          <button type="button" class="segmented-btn is-active" data-guide-tab="android" role="tab" aria-selected="true">
+            Android (Smartphone)
+          </button>
+          <button type="button" class="segmented-btn" data-guide-tab="rc" role="tab" aria-selected="false">
+            DJI RC
+          </button>
+          <button type="button" class="segmented-btn" data-guide-tab="rc2" role="tab" aria-selected="false">
+            DJI RC 2
+          </button>
+        </div>
+
+        <div id="guide-panel-android" class="guide-panel" role="tabpanel">
+          <ol class="guide-steps">
+            <li>Abra o DJI Fly, entre em <strong>Waypoint</strong>, adicione 2 pontos quaisquer no mapa e salve a missao placeholder.</li>
+            <li>Feche completamente o DJI Fly.</li>
+            <li>No gerenciador de arquivos (ou conectado ao PC via USB), navegue ate:
+              <code class="code-path">Android/data/dji.go.v5/files/waypoint/</code>
+            </li>
+            <li>Abra a subpasta mais recente com nome em formato UUID (ex: <code class="code-inline">A1B2C3D4-...</code>).</li>
+            <li>Copie o nome exato do arquivo <code class="code-inline">&lt;UUID&gt;.kmz</code> existente nessa pasta.</li>
+            <li>Substitua o arquivo pelo <code class="code-inline">.kmz</code> exportado do Pilot Pro, renomeando-o para o mesmo <code class="code-inline">&lt;UUID&gt;.kmz</code>.</li>
+            <li>Reabra o DJI Fly e confira a rota no mapa antes de decolar.</li>
+          </ol>
+        </div>
+
+        <div id="guide-panel-rc" class="guide-panel" role="tabpanel" hidden>
+          <ol class="guide-steps">
+            <li>No DJI RC, abra o DJI Fly, crie uma missao Waypoint com 2 pontos e salve como placeholder.</li>
+            <li>Desligue o DJI Fly e conecte o DJI RC ao computador via cabo USB-C (ou use o cartao microSD).</li>
+            <li>Acesse o armazenamento interno do controle em:
+              <code class="code-path">Internal shared storage/Android/data/dji.go.v5/files/waypoint/</code>
+            </li>
+            <li>Localize a pasta UUID da missao recem-criada (ordene por data de modificacao).</li>
+            <li>Substitua o arquivo <code class="code-inline">&lt;UUID&gt;.kmz</code> pelo arquivo gerado no Pilot Pro preservando o nome UUID exato.</li>
+            <li>Desconecte o cabo, abra o DJI Fly e valide altitude, pontos e acao final (RTH).</li>
+          </ol>
+        </div>
+
+        <div id="guide-panel-rc2" class="guide-panel" role="tabpanel" hidden>
+          <ol class="guide-steps">
+            <li>No DJI RC 2, crie uma missao Waypoint simples (2 pontos) no DJI Fly e salve.</li>
+            <li>Conecte o DJI RC 2 ao computador via cabo USB-C (modo transferencia de arquivos) ou transfira o KMZ pelo cartao microSD e use o app Arquivos do proprio RC 2.</li>
+            <li>Navegue ate a pasta:
+              <code class="code-path">Android/data/dji.go.v5/files/waypoint/</code>
+            </li>
+            <li>Entre na pasta UUID mais recente e anote o nome completo do arquivo <code class="code-inline">&lt;UUID&gt;.kmz</code>.</li>
+            <li>Renomeie o arquivo do Pilot Pro para esse UUID exato e substitua o original na pasta.</li>
+            <li>Se a missao tiver multiplas baterias (<code class="code-inline">_parte1.kmz</code>, <code class="code-inline">_parte2.kmz</code>), crie uma missao placeholder para cada parte.</li>
+          </ol>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-close-modal="modal-dji-guide">
+          Entendi
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Container de notificacoes Toast -->
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
