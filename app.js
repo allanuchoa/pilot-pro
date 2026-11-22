@@ -1993,19 +1993,70 @@ async function initApp(session) {
   }, 150);
 }
 
-// Registra botoes da tela de fallback imediatamente
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', bindFallbackListenersOnce, { once: true });
-} else {
-  bindFallbackListenersOnce();
+let bootInProgress = false;
+let bodyRevealObserver = null;
+
+function disconnectRevealObserver() {
+  if (bodyRevealObserver) {
+    bodyRevealObserver.disconnect();
+    bodyRevealObserver = null;
+  }
 }
 
-// Aguarda evento oficial do App Bridge
+async function tryBootAfterBridgeReveal() {
+  if (state.initialized || bootInProgress) return;
+  if (!document.body || document.body.style.display === 'none') return;
+
+  const mapEl = $('map');
+  const fallbackEl = $('app-error-fallback');
+  if (!mapEl || (fallbackEl && !fallbackEl.hidden)) return;
+  if (typeof globalThis.getSupabaseClient !== 'function') return;
+
+  bootInProgress = true;
+  try {
+    const client = globalThis.getSupabaseClient();
+    const { data, error } = await client.auth.getSession();
+    if (!error && data && data.session && data.session.user && !state.initialized) {
+      disconnectRevealObserver();
+      await initApp(data.session);
+    }
+  } catch (err) {
+    showFatalError('Erro de autenticacao', err && err.message ? err.message : 'Falha ao validar sessao.');
+  } finally {
+    bootInProgress = false;
+  }
+}
+
+function setupBridgeBootstrap() {
+  bindFallbackListenersOnce();
+
+  if (typeof MutationObserver !== 'undefined' && document.body && !state.initialized) {
+    bodyRevealObserver = new MutationObserver(() => {
+      tryBootAfterBridgeReveal();
+    });
+    bodyRevealObserver.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['style']
+    });
+  }
+
+  tryBootAfterBridgeReveal();
+}
+
+// Registra botoes da tela de fallback e observador de liberacao do App Bridge
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupBridgeBootstrap, { once: true });
+} else {
+  setupBridgeBootstrap();
+}
+
+// Aguarda evento oficial do App Bridge (quando suportado)
 window.addEventListener('workbench-ready', (event) => {
   const session = event && event.detail ? event.detail.session : null;
   if (!session || !session.user) {
     safeRedirectToPortal();
     return;
   }
+  disconnectRevealObserver();
   initApp(session);
 });
