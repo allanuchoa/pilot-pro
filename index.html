@@ -176,10 +176,14 @@
             </button>
             <div id="layers-menu" class="floating-popover layers-menu" hidden role="menu">
               <button type="button" class="popover-item is-active" data-layer="esri" role="menuitemradio" aria-checked="true">
-                Satelite (Esri World Imagery)
+                Satelite Hibrido (Esri + Cidades)
               </button>
+              <label class="popover-toggle-row" for="toggle-esri-labels">
+                <input type="checkbox" id="toggle-esri-labels" class="checkbox-input" checked>
+                <span>Mostrar cidades e divisoes</span>
+              </label>
               <button type="button" class="popover-item" data-layer="carto-dark" role="menuitemradio" aria-checked="false">
-                Carto Dark Matter
+                Mapa Escuro
               </button>
               <button type="button" class="popover-item" data-layer="osm" role="menuitemradio" aria-checked="false">
                 OpenStreetMap
@@ -213,13 +217,28 @@
               <div class="coords-fields">
                 <label class="field-compact">
                   <span>Latitude</span>
-                  <input type="number" id="input-goto-lat" step="0.000001" placeholder="-15.793889">
+                  <input
+                    type="text"
+                    inputmode="decimal"
+                    id="input-goto-lat"
+                    class="text-input mono"
+                    value="-3.964863"
+                    placeholder="-3.964863"
+                  >
                 </label>
                 <label class="field-compact">
                   <span>Longitude</span>
-                  <input type="number" id="input-goto-lon" step="0.000001" placeholder="-47.882778">
+                  <input
+                    type="text"
+                    inputmode="decimal"
+                    id="input-goto-lon"
+                    class="text-input mono"
+                    value="-38.377869"
+                    placeholder="-38.377869"
+                  >
                 </label>
               </div>
+              <p class="coords-hint">Cole "lat, lon" direto do Google Earth (Ctrl+V).</p>
               <div class="popover-actions">
                 <button type="button" id="btn-goto-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
                 <button type="button" id="btn-goto-submit" class="btn btn-primary btn-sm">Ir</button>
@@ -396,9 +415,6 @@
             </button>
           </div>
           <div class="panel-header-actions">
-            <button type="button" id="btn-save-mission" class="btn btn-secondary btn-sm">
-              Salvar
-            </button>
             <button type="button" id="btn-dji-guide" class="btn btn-ghost btn-sm">
               Guia DJI Fly
             </button>
@@ -654,11 +670,19 @@
           </section>
         </div>
 
-        <!-- Rodape fixo do painel com CTA principal -->
+        <!-- Rodape fixo do painel com status de salvamento e acoes principais -->
         <div id="control-panel-footer" class="panel-footer">
-          <button type="button" id="btn-open-export" class="btn btn-primary btn-block">
-            Exportar KMZ
-          </button>
+          <div id="mission-save-status" class="mission-save-status mono" aria-live="polite">
+            Alteracoes nao salvas
+          </div>
+          <div class="panel-footer-actions">
+            <button type="button" id="btn-save-mission" class="btn btn-secondary">
+              Salvar
+            </button>
+            <button type="button" id="btn-open-export" class="btn btn-primary">
+              Exportar KMZ
+            </button>
+          </div>
         </div>
       </aside>
     </div>
@@ -692,6 +716,11 @@
           <span class="field-label">Partes geradas</span>
           <div id="export-parts-list" class="export-parts-list"></div>
         </div>
+
+        <label class="export-save-option" for="export-save-mission-checkbox">
+          <input type="checkbox" id="export-save-mission-checkbox" class="checkbox-input" checked>
+          <span>Salvar missao na minha conta ao exportar</span>
+        </label>
       </div>
       <div class="modal-footer">
         <button type="button" id="btn-export-guide-link" class="btn btn-ghost btn-sm">
@@ -851,6 +880,12 @@
         </button>
       </div>
       <div class="modal-body">
+        <div id="guide-camera-notice" class="alert-card alert-warning">
+          <strong>Configuracao obrigatoria da camera no DJI Fly:</strong> defina o modo foto em
+          <strong>12 MP</strong> e proporcao <strong>4:3</strong> (no Mavic 3 wide: <strong>20 MP</strong> em <strong>4:3</strong>).
+          Os calculos de sobreposicao, espacamento e GSD assumem formato 4:3.
+        </div>
+
         <div class="guide-intro">
           O aplicativo DJI Fly nao possui botao nativo de importacao de arquivo KMZ.
           O procedimento padrao consiste em criar uma missao placeholder e substituir o arquivo KMZ mantendo exatamente o mesmo nome UUID.

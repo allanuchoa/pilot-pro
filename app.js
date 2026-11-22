@@ -26,7 +26,11 @@ import {
   exportSinglePartKmz,
   exportMissionPackage
 } from './js/wpml-exporter.js';
-import { createMapController } from './js/map-controller.js';
+import {
+  createMapController,
+  parseCoordinatePair,
+  parseSingleCoordinate
+} from './js/map-controller.js';
 import { renderElevationProfile } from './js/profile-chart.js';
 import {
   listMissions,
@@ -67,6 +71,7 @@ const state = {
 
   missionId: null,
   missionName: 'Nova Missao',
+  hasUnsavedChanges: false,
   missionType: 'grid',
   droneKey: 'dji-mini-4-pro',
   customDrones: [],
@@ -167,6 +172,32 @@ function formatDuration(minutes) {
 
 function getActiveDrone() {
   return getDroneByKey(state.droneKey, state.customDrones) || BUILTIN_DRONES[0];
+}
+
+function hasDrawnGeometry() {
+  return Boolean(state.mapController && state.mapController.hasGeometry()) || Boolean(state.areaGeoJson);
+}
+
+function confirmGeometrySwitch() {
+  if (!hasDrawnGeometry()) return true;
+  return window.confirm('Trocar o tipo de missao vai limpar a geometria desenhada. Deseja continuar?');
+}
+
+function updateSaveStatusUI() {
+  const el = $('mission-save-status');
+  if (!el) return;
+  if (state.missionId && !state.hasUnsavedChanges) {
+    el.textContent = `Salva: ${state.missionName}`;
+    el.classList.add('is-saved');
+  } else {
+    el.textContent = 'Alteracoes nao salvas';
+    el.classList.remove('is-saved');
+  }
+}
+
+function markMissionDirty() {
+  state.hasUnsavedChanges = true;
+  updateSaveStatusUI();
 }
 
 function clearRuntimeState() {
@@ -946,6 +977,47 @@ function populateExportModal() {
   }
 }
 
+async function maybeAutoSaveBeforeExport(exportSlug) {
+  const saveCheckbox = $('export-save-mission-checkbox');
+  if (!saveCheckbox || !saveCheckbox.checked) return;
+  if (!state.supabaseClient || !state.session || !state.areaGeoJson) return;
+
+  const currentName = String(state.missionName || '').trim();
+  const isDefaultName = !currentName || currentName.toLowerCase() === 'nova missao';
+  if (isDefaultName && exportSlug) {
+    state.missionName = exportSlug;
+    const nameInput = $('input-mission-name');
+    if (nameInput) nameInput.value = exportSlug;
+  }
+
+  try {
+    const saved = await saveMission(state.supabaseClient, state.session.user.id, {
+      id: state.missionId,
+      name: state.missionName || exportSlug || 'Missao Pilot Pro',
+      mission_type: state.missionType,
+      drone_key: state.droneKey,
+      area_geojson: state.areaGeoJson,
+      takeoff_point: state.takeoffPoint,
+      flight_params: { ...state.params },
+      summary_metrics: {
+        areaSqm: state.areaSqm,
+        ...(state.splitResult ? state.splitResult.totals : {}),
+        gsdCm: state.photogrammetry ? state.photogrammetry.gsdCm : null
+      }
+    });
+    state.missionId = saved.id;
+    state.missionName = saved.name;
+    state.hasUnsavedChanges = false;
+    updateSaveStatusUI();
+    showToast(`Missao "${saved.name}" salva na sua conta.`, 'success');
+  } catch (err) {
+    showToast(
+      `Aviso: falha ao salvar missao (${err && err.message ? err.message : 'erro de rede'}), prosseguindo com o download.`,
+      'danger'
+    );
+  }
+}
+
 async function handleExportAll() {
   const validationError = validateBeforeExport();
   if (validationError) {
@@ -954,8 +1026,11 @@ async function handleExportAll() {
   }
 
   const filenameInput = $('export-filename-input');
-  const slug = slugifyMissionName(filenameInput ? filenameInput.value : state.missionName);
+  const rawFilename = filenameInput ? filenameInput.value.trim() : '';
+  const slug = slugifyMissionName(rawFilename || state.missionName);
   const config = buildExportConfig(slug);
+
+  await maybeAutoSaveBeforeExport(rawFilename || slug);
 
   try {
     const pkg = await exportMissionPackage(state.splitResult.parts, config, globalThis.JSZip);
@@ -980,11 +1055,14 @@ async function handleExportSinglePart(partIdx) {
   if (!part) return;
 
   const filenameInput = $('export-filename-input');
-  const slug = slugifyMissionName(filenameInput ? filenameInput.value : state.missionName);
+  const rawFilename = filenameInput ? filenameInput.value.trim() : '';
+  const slug = slugifyMissionName(rawFilename || state.missionName);
   const config = {
     ...buildExportConfig(slug),
     totalParts: state.splitResult.parts.length
   };
+
+  await maybeAutoSaveBeforeExport(rawFilename || slug);
 
   try {
     const result = await exportSinglePartKmz(part, config, globalThis.JSZip);
@@ -1118,6 +1196,9 @@ async function handleSaveMission() {
       }
     });
     state.missionId = saved.id;
+    state.missionName = saved.name;
+    state.hasUnsavedChanges = false;
+    updateSaveStatusUI();
     showToast(`Missao "${saved.name}" salva com sucesso.`, 'success');
   } catch (err) {
     showToast(err && err.message ? err.message : 'Falha ao salvar missao.', 'danger');
@@ -1129,6 +1210,7 @@ async function handleSaveMission() {
 function loadMissionIntoWorkspace(mission) {
   state.missionId = mission.id;
   state.missionName = mission.name || 'Missao Carregada';
+  state.hasUnsavedChanges = false;
   state.missionType = mission.mission_type || 'grid';
   state.droneKey = mission.drone_key || 'dji-mini-4-pro';
   state.params = {
@@ -1159,6 +1241,7 @@ function loadMissionIntoWorkspace(mission) {
   }
 
   recomputeMission({ fetchElevation: true });
+  updateSaveStatusUI();
   closeModal('modal-missions');
   showToast(`Missao "${state.missionName}" carregada.`, 'success');
 }
@@ -1288,6 +1371,7 @@ function bindSliderAndNumber(rangeId, numberId, paramKey, { min, max, fetchEleva
     state.params[paramKey] = val;
     if (rangeEl) rangeEl.value = String(val);
     if (numEl) numEl.value = String(val);
+    markMissionDirty();
     recomputeMission({ fetchElevation });
   };
 
@@ -1323,11 +1407,15 @@ function bindStaticListenersOnce() {
   if (btnPoly) {
     btnPoly.addEventListener('click', () => {
       if (state.missionType === 'corridor') {
+        if (!confirmGeometrySwitch()) return;
         state.missionType = 'grid';
         syncMissionTypeUI();
+        markMissionDirty();
+        if (state.mapController) {
+          state.mapController.setGeometryType('polygon', { clearIfChanged: true });
+        }
       }
       if (state.mapController) {
-        state.mapController.setGeometryType('polygon', { clearIfChanged: true });
         state.mapController.setMode('draw-polygon');
       }
     });
@@ -1336,10 +1424,16 @@ function bindStaticListenersOnce() {
   const btnCorr = $('btn-tool-corridor');
   if (btnCorr) {
     btnCorr.addEventListener('click', () => {
-      state.missionType = 'corridor';
-      syncMissionTypeUI();
+      if (state.missionType !== 'corridor') {
+        if (!confirmGeometrySwitch()) return;
+        state.missionType = 'corridor';
+        syncMissionTypeUI();
+        markMissionDirty();
+        if (state.mapController) {
+          state.mapController.setGeometryType('line', { clearIfChanged: true });
+        }
+      }
       if (state.mapController) {
-        state.mapController.setGeometryType('line', { clearIfChanged: true });
         state.mapController.setMode('draw-line');
       }
     });
@@ -1385,6 +1479,7 @@ function bindStaticListenersOnce() {
           state.mapController.setGeometry(parsed.geojson, { fit: true, emit: false });
         }
 
+        markMissionDirty();
         recomputeMission({ fetchElevation: true });
         showToast(`Arquivo "${file.name}" importado com sucesso.`, 'success');
       } catch (err) {
@@ -1396,8 +1491,13 @@ function bindStaticListenersOnce() {
   const btnClear = $('btn-clear-area');
   if (btnClear) {
     btnClear.addEventListener('click', () => {
+      if (hasDrawnGeometry()) {
+        const confirmed = window.confirm('Limpar a geometria e a rota atual?');
+        if (!confirmed) return;
+      }
       cancelPendingElevation();
       state.missionId = null;
+      state.hasUnsavedChanges = false;
       state.areaGeoJson = null;
       state.takeoffPoint = null;
       state.takeoffIsSuggested = false;
@@ -1410,6 +1510,7 @@ function bindStaticListenersOnce() {
         state.mapController.clearTakeoffPoint();
       }
       syncTakeoffInfoUI();
+      updateSaveStatusUI();
       renderElevationStatusUI();
       renderProfileChartUI();
       renderTelemetryAndParts();
@@ -1418,9 +1519,10 @@ function bindStaticListenersOnce() {
     });
   }
 
-  // Camadas base
+  // Camadas base e rotulos Esri
   const btnLayers = $('btn-layers-toggle');
   const layersMenu = $('layers-menu');
+  const toggleEsriLabels = $('toggle-esri-labels');
   if (btnLayers && layersMenu) {
     btnLayers.addEventListener('click', (ev) => {
       ev.stopPropagation();
@@ -1431,6 +1533,7 @@ function bindStaticListenersOnce() {
     });
 
     layersMenu.addEventListener('click', (ev) => {
+      ev.stopPropagation();
       const item = ev.target.closest('[data-layer]');
       if (!item || !state.mapController) return;
       const layerKey = item.dataset.layer;
@@ -1441,6 +1544,14 @@ function bindStaticListenersOnce() {
         btn.setAttribute('aria-checked', String(active));
       });
       closePopovers();
+    });
+  }
+
+  if (toggleEsriLabels) {
+    toggleEsriLabels.addEventListener('change', () => {
+      if (state.mapController) {
+        state.mapController.setEsriLabelsVisible(toggleEsriLabels.checked);
+      }
     });
   }
 
@@ -1458,11 +1569,28 @@ function bindStaticListenersOnce() {
     });
   }
 
-  // Ir para coordenadas
+  // Ir para coordenadas (com suporte a Ctrl+V de pares do Google Earth / Maps)
   const btnGoto = $('btn-goto-coords');
   const coordsPopover = $('coords-popover');
   const btnGotoCancel = $('btn-goto-cancel');
   const btnGotoSubmit = $('btn-goto-submit');
+  const gotoLatInput = $('input-goto-lat');
+  const gotoLonInput = $('input-goto-lon');
+
+  const handleCoordPaste = (ev) => {
+    const pasted = ev.clipboardData && ev.clipboardData.getData('text');
+    if (!pasted) return;
+    const pair = parseCoordinatePair(pasted);
+    if (!pair) return;
+    ev.preventDefault();
+    if (gotoLatInput) gotoLatInput.value = pair.lat.toFixed(6);
+    if (gotoLonInput) gotoLonInput.value = pair.lon.toFixed(6);
+    showToast('Coordenadas preenchidas automaticamente.', 'success');
+  };
+
+  if (gotoLatInput) gotoLatInput.addEventListener('paste', handleCoordPaste);
+  if (gotoLonInput) gotoLonInput.addEventListener('paste', handleCoordPaste);
+
   if (btnGoto && coordsPopover) {
     btnGoto.addEventListener('click', (ev) => {
       ev.stopPropagation();
@@ -1470,8 +1598,8 @@ function bindStaticListenersOnce() {
       closePopovers();
       coordsPopover.hidden = !willOpen;
       btnGoto.setAttribute('aria-expanded', String(willOpen));
-      if (willOpen && $('input-goto-lat')) {
-        $('input-goto-lat').focus();
+      if (willOpen && gotoLatInput) {
+        gotoLatInput.focus();
       }
     });
     coordsPopover.addEventListener('click', (ev) => ev.stopPropagation());
@@ -1482,10 +1610,19 @@ function bindStaticListenersOnce() {
   if (btnGotoSubmit) {
     btnGotoSubmit.addEventListener('click', () => {
       if (!state.mapController) return;
-      const lat = $('input-goto-lat') ? $('input-goto-lat').value : '';
-      const lon = $('input-goto-lon') ? $('input-goto-lon').value : '';
+      const rawLat = gotoLatInput ? gotoLatInput.value.trim() : '';
+      const rawLon = gotoLonInput ? gotoLonInput.value.trim() : '';
       try {
-        state.mapController.goToCoordinates(lat, lon, 16);
+        const inlinePair = parseCoordinatePair(rawLat) || parseCoordinatePair(rawLon);
+        if (inlinePair) {
+          if (gotoLatInput) gotoLatInput.value = inlinePair.lat.toFixed(6);
+          if (gotoLonInput) gotoLonInput.value = inlinePair.lon.toFixed(6);
+          state.mapController.goToCoordinates(inlinePair.lat, inlinePair.lon, 16);
+        } else {
+          const parsedLat = parseSingleCoordinate(rawLat);
+          const parsedLon = parseSingleCoordinate(rawLon);
+          state.mapController.goToCoordinates(parsedLat, parsedLon, 16);
+        }
         closePopovers();
       } catch (err) {
         showToast(err.message, 'danger');
@@ -1631,6 +1768,7 @@ function bindStaticListenersOnce() {
   if (nameInput) {
     nameInput.addEventListener('input', () => {
       state.missionName = nameInput.value;
+      markMissionDirty();
     });
   }
 
@@ -1650,6 +1788,7 @@ function bindStaticListenersOnce() {
     selectDrone.addEventListener('change', () => {
       state.droneKey = selectDrone.value;
       renderDroneSpecSummary(getActiveDrone());
+      markMissionDirty();
       recomputeMission({ fetchElevation: true });
     });
   }
@@ -1717,8 +1856,14 @@ function bindStaticListenersOnce() {
 
       const prevWasCorridor = state.missionType === 'corridor';
       const nextIsCorridor = nextType === 'corridor';
+
+      if (prevWasCorridor !== nextIsCorridor && !confirmGeometrySwitch()) {
+        return;
+      }
+
       state.missionType = nextType;
       syncMissionTypeUI();
+      markMissionDirty();
 
       if (state.mapController && prevWasCorridor !== nextIsCorridor) {
         state.mapController.setGeometryType(nextIsCorridor ? 'line' : 'polygon', {
@@ -1749,6 +1894,7 @@ function bindStaticListenersOnce() {
       if (!btn) return;
       const raw = btn.dataset.interval;
       state.params.intervalMode = raw === 'auto' ? 'auto' : Number(raw);
+      markMissionDirty();
       recomputeMission({ fetchElevation: false });
     });
   }
@@ -1766,6 +1912,7 @@ function bindStaticListenersOnce() {
         state.params.rotationDeg = optimal;
         if ($('input-rotation')) $('input-rotation').value = String(optimal);
         if ($('range-rotation')) $('range-rotation').value = String(optimal);
+        markMissionDirty();
         recomputeMission({ fetchElevation: true });
         showToast(`Angulo otimizado para ${optimal} graus.`, 'success');
       } catch (err) {
@@ -1779,6 +1926,7 @@ function bindStaticListenersOnce() {
   if (revToggle) {
     revToggle.addEventListener('change', () => {
       state.params.reverseDirection = revToggle.checked;
+      markMissionDirty();
       recomputeMission({ fetchElevation: true });
     });
   }
@@ -1787,6 +1935,7 @@ function bindStaticListenersOnce() {
   if (strToggle) {
     strToggle.addEventListener('change', () => {
       state.params.straightenFlightPath = strToggle.checked;
+      markMissionDirty();
       recomputeMission({ fetchElevation: true });
     });
   }
@@ -1799,6 +1948,7 @@ function bindStaticListenersOnce() {
       if (!btn) return;
       state.params.altitudeMode = btn.dataset.altitudeMode;
       syncAltitudeModeUI();
+      markMissionDirty();
       recomputeMission({ fetchElevation: true });
     });
   }
@@ -1808,6 +1958,7 @@ function bindStaticListenersOnce() {
   if (finishSelect) {
     finishSelect.addEventListener('change', () => {
       state.params.finishAction = finishSelect.value;
+      markMissionDirty();
     });
   }
 
@@ -1818,6 +1969,7 @@ function bindStaticListenersOnce() {
       if (!btn) return;
       state.params.triggerMode = btn.dataset.triggerMode;
       syncTriggerModeUI();
+      markMissionDirty();
     });
   }
 
@@ -1827,6 +1979,7 @@ function bindStaticListenersOnce() {
       const val = Math.max(10, Math.min(500, Math.round(Number(maxWpInput.value) || 99)));
       state.params.maxWaypointsPerPart = val;
       maxWpInput.value = String(val);
+      markMissionDirty();
       recomputeSplitAndRenderMap();
     });
   }
@@ -1837,6 +1990,7 @@ function bindStaticListenersOnce() {
       const val = Math.max(5, Math.min(50, Number(reserveInput.value) || 20));
       state.params.batteryReservePct = val;
       reserveInput.value = String(val);
+      markMissionDirty();
       recomputeSplitAndRenderMap();
     });
   }
@@ -1955,12 +2109,14 @@ async function initApp(session) {
     maptilerKey: (globalThis.CONFIG && globalThis.CONFIG.MAPTILER_KEY) || '',
     onGeometryChange: (geojson) => {
       state.areaGeoJson = geojson;
+      markMissionDirty();
       recomputeMission({ fetchElevation: true });
     },
     onTakeoffChange: (point) => {
       state.takeoffPoint = point;
       state.takeoffIsSuggested = false;
       syncTakeoffInfoUI();
+      markMissionDirty();
       recomputeMission({ fetchElevation: true });
     },
     onModeChange: (mode) => {
@@ -1986,6 +2142,7 @@ async function initApp(session) {
 
   renderDroneSelector();
   syncAllInputsFromState();
+  updateSaveStatusUI();
   recomputeMission({ fetchElevation: false });
 
   window.setTimeout(() => {

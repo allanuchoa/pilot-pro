@@ -25,6 +25,10 @@ import {
   exportSinglePartKmz,
   exportMissionPackage
 } from '../js/wpml-exporter.js';
+import {
+  parseCoordinatePair,
+  parseSingleCoordinate
+} from '../js/map-controller.js';
 
 let passed = 0;
 let failed = 0;
@@ -504,6 +508,40 @@ await test('wpml-exporter.js: XML valido template.kml e waylines.wpml (WPML vs M
   assert.equal(multiPkg.filename, 'teste-campo.zip');
   const multiManifest = JSON.parse(new TextDecoder().decode(multiPkg.data));
   assert.deepEqual(multiManifest.entries, ['teste-campo_parte1.kmz', 'teste-campo_parte2.kmz']);
+});
+
+// ============================================================================
+// 7. map-controller.js (parseCoordinatePair / parseSingleCoordinate)
+// ============================================================================
+
+await test('map-controller.js: parseCoordinatePair interpreta Google Earth, decimais com ° e GMS/DMS', () => {
+  const geDeg = parseCoordinatePair('-3.964863°, -38.377869°');
+  assert.ok(geDeg);
+  assert.ok(Math.abs(geDeg.lat - (-3.964863)) < 1e-6);
+  assert.ok(Math.abs(geDeg.lon - (-38.377869)) < 1e-6);
+
+  const plainComma = parseCoordinatePair('-3.964863, -38.377869');
+  assert.ok(plainComma);
+  assert.equal(plainComma.lat, -3.964863);
+  assert.equal(plainComma.lon, -38.377869);
+
+  const spaceSep = parseCoordinatePair('-3.964863 -38.377869');
+  assert.ok(spaceSep);
+  assert.equal(spaceSep.lat, -3.964863);
+  assert.equal(spaceSep.lon, -38.377869);
+
+  const semiSep = parseCoordinatePair('-3.964863; -38.377869');
+  assert.ok(semiSep);
+  assert.equal(semiSep.lat, -3.964863);
+
+  const dms = parseCoordinatePair('3°57\'53.5"S 38°22\'40.3"W');
+  assert.ok(dms);
+  assert.ok(Math.abs(dms.lat - (-3.964861)) < 0.0001);
+  assert.ok(Math.abs(dms.lon - (-38.377861)) < 0.0001);
+
+  assert.equal(parseSingleCoordinate('-3.964863°'), -3.964863);
+  assert.equal(parseCoordinatePair('95.0, -38.37'), null);
+  assert.equal(parseCoordinatePair('texto invalido'), null);
 });
 
 console.log(`\nResumo: ${passed} passou, ${failed} falhou.`);

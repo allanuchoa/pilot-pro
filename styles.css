@@ -275,8 +275,30 @@ body {
   font-weight: 600;
 }
 
+.popover-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 8px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--color-hairline);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.checkbox-input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .coords-popover {
-  width: 260px;
+  width: 300px;
+  max-width: calc(100vw - 24px);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -292,8 +314,24 @@ body {
 
 .coords-fields {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
+}
+
+.coords-fields .field-compact {
+  min-width: 0;
+}
+
+.coords-fields input {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.coords-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-text-subtle);
 }
 
 .popover-actions {
@@ -597,9 +635,44 @@ body {
 
 .panel-footer {
   flex: 0 0 auto;
-  padding: 12px 14px;
+  padding: 10px 14px 12px;
   border-top: 1px solid var(--color-hairline);
   background-color: var(--color-canvas);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mission-save-status {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mission-save-status.is-saved {
+  color: var(--color-primary);
+}
+
+.panel-footer-actions {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+}
+
+.export-save-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
 }
 
 /* Secoes e Controles */

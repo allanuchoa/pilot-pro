@@ -1,40 +1,188 @@
 /**
  * Controlador de mapa interativo (Leaflet) do Pilot Pro.
  * Gerencia camadas base, desenho/edicao de poligono e polilinha,
- * ponto de decolagem arrastavel, renderizacao multi-bateria e marcador de hover.
+ * ponto de decolagem arrastavel, renderizacao multi-bateria, marcador de hover
+ * e parser de coordenadas (Google Earth / Maps).
  */
 
 const ROUTE_COLORS = ['#00d992', '#38bdf8', '#f59e0b', '#a78bfa'];
 
-const DEFAULT_CENTER = [-15.793889, -47.882778];
-const DEFAULT_ZOOM = 5;
+const DEFAULT_CENTER = [-3.964863, -38.377869];
+const DEFAULT_ZOOM = 12;
+
+/**
+ * Converte uma unica coordenada (decimal com ou sem simbolo de grau, ou GMS/DMS) em numero.
+ * @param {string} raw
+ * @returns {number|null}
+ */
+export function parseSingleCoordinate(raw) {
+  if (typeof raw !== 'string' && typeof raw !== 'number') {
+    return null;
+  }
+  const str = String(raw)
+    .trim()
+    .replace(/[º°]/g, '°')
+    .replace(/[′’']/g, "'")
+    .replace(/[″”"]/g, '"');
+
+  if (!str) return null;
+
+  // Tenta formato GMS / DMS: ex. 3°57'53.5"S ou 3° 57' 53.5" S
+  const dmsRegex = /^([+-]?\d+(?:\.\d+)?)\s*(?:°|d)\s*(?:(\d+(?:\.\d+)?)\s*(?:'|m)\s*)?(?:(\d+(?:\.\d+)?)\s*(?:"|s)\s*)?([NSEWO])?$/i;
+  const dmsMatch = str.match(dmsRegex);
+  if (dmsMatch && (dmsMatch[2] !== undefined || dmsMatch[3] !== undefined || dmsMatch[4] !== undefined)) {
+    const deg = Number(dmsMatch[1]);
+    const min = dmsMatch[2] !== undefined ? Number(dmsMatch[2]) : 0;
+    const sec = dmsMatch[3] !== undefined ? Number(dmsMatch[3]) : 0;
+    if (!Number.isFinite(deg) || !Number.isFinite(min) || !Number.isFinite(sec)) {
+      return null;
+    }
+    if (min < 0 || min >= 60 || sec < 0 || sec >= 60) {
+      return null;
+    }
+    const sign = deg < 0 ? -1 : 1;
+    let value = sign * (Math.abs(deg) + min / 60 + sec / 3600);
+    const hemi = dmsMatch[4] ? dmsMatch[4].toUpperCase() : '';
+    if (hemi === 'S' || hemi === 'W' || hemi === 'O') {
+      value = -Math.abs(value);
+    } else if (hemi === 'N' || hemi === 'E') {
+      value = Math.abs(value);
+    }
+    return Number.isFinite(value) ? value : null;
+  }
+
+  // Formato decimal com opcional ° e hemisferio N/S/E/W/O
+  const decRegex = /^([NSEWO])?\s*([+-]?\d+(?:\.\d+)?)\s*°?\s*([NSEWO])?$/i;
+  const decMatch = str.match(decRegex);
+  if (!decMatch) return null;
+
+  let value = Number(decMatch[2]);
+  if (!Number.isFinite(value)) return null;
+
+  const hemi = (decMatch[1] || decMatch[3] || '').toUpperCase();
+  if (hemi === 'S' || hemi === 'W' || hemi === 'O') {
+    value = -Math.abs(value);
+  } else if (hemi === 'N' || hemi === 'E') {
+    value = Math.abs(value);
+  }
+  return value;
+}
+
+/**
+ * Interpreta um par de coordenadas colado do Google Earth ou Google Maps.
+ * Suporta graus decimais (com ou sem °) e formato GMS/DMS.
+ * @param {string} text
+ * @returns {{lat: number, lon: number}|null}
+ */
+export function parseCoordinatePair(text) {
+  if (typeof text !== 'string') return null;
+  const normalized = text
+    .trim()
+    .replace(/[º°]/g, '°')
+    .replace(/[′’']/g, "'")
+    .replace(/[″”"]/g, '"')
+    .replace(/\s+/g, ' ');
+
+  if (!normalized) return null;
+
+  // 1. Tenta extrair dois tokens DMS/GMS na mesma string (ex: 3°57'53.5"S 38°22'40.3"W)
+  const dmsTokenRegex = /[+-]?\d+(?:\.\d+)?\s*(?:°|d)\s*\d+(?:\.\d+)?\s*(?:'|m)\s*(?:\d+(?:\.\d+)?\s*(?:"|s)\s*)?[NSEWO]?/gi;
+  const dmsTokens = normalized.match(dmsTokenRegex);
+  if (dmsTokens && dmsTokens.length === 2) {
+    const lat = parseSingleCoordinate(dmsTokens[0]);
+    const lon = parseSingleCoordinate(dmsTokens[1]);
+    if (lat !== null && lon !== null && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+      return { lat, lon };
+    }
+  }
+
+  // 2. Separacao explicita por virgula ou ponto-e-virgula
+  let parts = null;
+  if (normalized.includes(',')) {
+    parts = normalized.split(',').map((s) => s.trim()).filter(Boolean);
+  } else if (normalized.includes(';')) {
+    parts = normalized.split(';').map((s) => s.trim()).filter(Boolean);
+  } else {
+    parts = normalized.split(/\s+/).filter(Boolean);
+  }
+
+  if (!parts || parts.length !== 2) {
+    return null;
+  }
+
+  const lat = parseSingleCoordinate(parts[0]);
+  const lon = parseSingleCoordinate(parts[1]);
+  if (lat === null || lon === null) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+
+  return { lat, lon };
+}
 
 function createBaseLayers(maptilerKey) {
   const L = globalThis.L;
+
+  const esriImagery = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {
+      attribution: 'Tiles &copy; Esri',
+      maxZoom: 19,
+      maxNativeZoom: 18
+    }
+  );
+
+  const esriBoundaries = L.tileLayer(
+    'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    {
+      attribution: '&copy; Esri',
+      maxZoom: 19,
+      maxNativeZoom: 17,
+      opacity: 0.92
+    }
+  );
+
+  const esriTransport = L.tileLayer(
+    'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+    {
+      attribution: '&copy; Esri',
+      maxZoom: 19,
+      maxNativeZoom: 17,
+      opacity: 0.55
+    }
+  );
+
+  const esriLabelsGroup = L.layerGroup([esriTransport, esriBoundaries]);
+  const esriComposite = L.layerGroup([esriImagery, esriLabelsGroup]);
+
+  // Esri Dark Gray Canvas (gratuito e sem chave; substitui Carto Dark que passou a retornar placeholder de API key)
+  const darkBase = L.tileLayer(
+    'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    {
+      attribution: 'Tiles &copy; Esri',
+      maxZoom: 19,
+      maxNativeZoom: 16
+    }
+  );
+  const darkRef = L.tileLayer(
+    'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    {
+      attribution: '&copy; Esri',
+      maxZoom: 19,
+      maxNativeZoom: 16
+    }
+  );
+  const darkComposite = L.layerGroup([darkBase, darkRef]);
+
   const layers = {
     esri: {
       key: 'esri',
-      label: 'Satelite (Esri)',
-      layer: L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        {
-          attribution: 'Tiles &copy; Esri',
-          maxZoom: 19,
-          maxNativeZoom: 18
-        }
-      )
+      label: 'Satelite Hibrido (Esri + Cidades)',
+      layer: esriComposite,
+      labelsLayer: esriLabelsGroup
     },
     'carto-dark': {
       key: 'carto-dark',
-      label: 'Escuro (Carto Dark)',
-      layer: L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        {
-          attribution: '&copy; OpenStreetMap &copy; CARTO',
-          subdomains: 'abcd',
-          maxZoom: 20
-        }
-      )
+      label: 'Mapa Escuro (Esri Dark Gray)',
+      layer: darkComposite
     },
     osm: {
       key: 'osm',
@@ -199,6 +347,7 @@ export class MapController {
 
     this.baseLayers = createBaseLayers(maptilerKey);
     this.activeBaseLayerKey = 'esri';
+    this.esriLabelsVisible = true;
     this.baseLayers.esri.layer.addTo(this.map);
 
     this.geometryLayer = L.layerGroup().addTo(this.map);
@@ -241,8 +390,29 @@ export class MapController {
 
     this.baseLayers[layerKey].layer.addTo(this.map);
     this.activeBaseLayerKey = layerKey;
+
+    if (layerKey === 'esri') {
+      this._syncEsriLabels();
+    }
+
     this.callbacks.onBaseLayerChange(layerKey);
     return layerKey;
+  }
+
+  setEsriLabelsVisible(visible) {
+    this.esriLabelsVisible = Boolean(visible);
+    this._syncEsriLabels();
+  }
+
+  _syncEsriLabels() {
+    const esriEntry = this.baseLayers.esri;
+    if (!esriEntry || !esriEntry.labelsLayer) return;
+    const hasLabels = esriEntry.layer.hasLayer(esriEntry.labelsLayer);
+    if (this.esriLabelsVisible && !hasLabels) {
+      esriEntry.layer.addLayer(esriEntry.labelsLayer);
+    } else if (!this.esriLabelsVisible && hasLabels) {
+      esriEntry.layer.removeLayer(esriEntry.labelsLayer);
+    }
   }
 
   setMode(mode) {
@@ -251,6 +421,7 @@ export class MapController {
       return;
     }
 
+    // Modo takeoff preserva integralmente vertices, poligono/corredor e rotas
     if (mode === 'draw-polygon' && this.geometryType !== 'polygon') {
       this.geometryType = 'polygon';
       this._renderEditableGeometry();
@@ -331,6 +502,10 @@ export class MapController {
 
   getVertexCount() {
     return this.vertices.length;
+  }
+
+  hasGeometry() {
+    return this.vertices.length > 0;
   }
 
   setGeometry(geojson, { fit = false, emit = false } = {}) {
@@ -693,9 +868,11 @@ export class MapController {
   }
 
   goToCoordinates(lat, lon, zoom = 16) {
-    const numLat = Number(lat);
-    const numLon = Number(lon);
+    const numLat = typeof lat === 'string' ? parseSingleCoordinate(lat) : Number(lat);
+    const numLon = typeof lon === 'string' ? parseSingleCoordinate(lon) : Number(lon);
     if (
+      numLat === null ||
+      numLon === null ||
       !Number.isFinite(numLat) ||
       !Number.isFinite(numLon) ||
       numLat < -90 ||

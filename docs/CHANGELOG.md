@@ -2,6 +2,22 @@
 
 Todas as mudancas relevantes do projeto Pilot Pro sao registradas neste arquivo.
 
+## [1.0.1] - 2026-11-22
+
+### Adicionado
+* Camada satelite hibrida Esri composta por `World_Imagery`, `World_Boundaries_and_Places` e `World_Transportation`, com controle independente para exibir ou ocultar rotulos no menu de camadas.
+* Parser de coordenadas (`parseCoordinatePair` e `parseSingleCoordinate`) com suporte a colagem direta de pares decimais e GMS/DMS no popover de navegacao, coberto por teste automatizado em `tests/run-tests.mjs`.
+* Aviso operacional no topo do modal Guia Rapido DJI Fly reforçando o uso do modo foto 12 MP em proporcao 4:3 antes de iniciar a missao.
+* Indicador visual de status de salvamento na base da barra lateral e opcao marcada por padrao para salvar ou atualizar a missao automaticamente ao exportar o pacote `.kmz`/`.zip`.
+
+### Modificado
+* Centro inicial padrao do mapa e placeholders de coordenadas ajustados para a regiao de Aquiraz-CE (`-3.964863, -38.377869`, zoom 12).
+* Camada escura migrada do Carto Dark Matter para Esri Dark Gray Canvas (`World_Dark_Gray_Base` e `World_Dark_Gray_Reference`) sem necessidade de chave de API.
+* Alternancia entre poligono e corredor ou clique em limpar area agora solicita confirmacao quando ha geometria desenhada, enquanto o modo de marcacao de decolagem preserva integralmente a geometria e a rota atuais.
+
+### Corrigido
+* Corrigido overflow horizontal no popover de coordenadas em `styles.css` e garantia de rastreamento de alteracoes pendentes (`markMissionDirty`) em todos os controles de parametrizacao em `app.js`.
+
 ## [1.0.0] - 2026-11-22
 
 ### Adicionado
